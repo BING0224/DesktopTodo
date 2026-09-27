@@ -1,0 +1,563 @@
+<Window x:Class="DesktopTodo.Views.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="DesktopTodo"
+        Icon="/Assets/DesktopTodo.ico"
+        Width="426" Height="460" MinWidth="260" MinHeight="220"
+        WindowStyle="None" ResizeMode="NoResize" AllowsTransparency="True"
+        Background="Transparent" ShowInTaskbar="False"
+        WindowStartupLocation="Manual" Opacity="0"
+        FontFamily="Segoe UI, Microsoft YaHei UI"
+        SourceInitialized="MainWindow_SourceInitialized"
+        Loaded="MainWindow_Loaded" Closing="MainWindow_Closing">
+
+    <Window.Resources>
+        <SolidColorBrush x:Key="TextBrush" Color="#FF21374D" />
+        <SolidColorBrush x:Key="MutedBrush" Color="#FF64778B" />
+        <SolidColorBrush x:Key="AccentBrush" Color="#FF0868EF" />
+        <SolidColorBrush x:Key="TealBrush" Color="#FF00BFB5" />
+        <SolidColorBrush x:Key="RowHoverBrush" Color="#EEFFFFFF" />
+
+        <Style x:Key="IconButtonStyle" TargetType="Button">
+            <Setter Property="Width" Value="30" />
+            <Setter Property="Height" Value="30" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Chrome" CornerRadius="9"
+                                Background="{TemplateBinding Background}">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Chrome" Property="Background" Value="#2270A9D4" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Chrome" Property="Opacity" Value="0.65" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="TodoCheckStyle" TargetType="CheckBox">
+            <Setter Property="Width" Value="22" />
+            <Setter Property="Height" Value="22" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="CheckBox">
+                        <Border x:Name="Indicator" Width="19" Height="19"
+                                CornerRadius="6" BorderThickness="1.3"
+                                BorderBrush="#A0AFC3CF" Background="#80FFFFFF">
+                            <Path x:Name="Tick" Data="M 4 9 L 7.5 12.5 L 14 5.5"
+                                  Stroke="#FFFFFFFF" StrokeThickness="2"
+                                  StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                                  Visibility="Collapsed" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Indicator" Property="Background" Value="{StaticResource TealBrush}" />
+                                <Setter TargetName="Indicator" Property="BorderBrush" Value="{StaticResource TealBrush}" />
+                                <Setter TargetName="Tick" Property="Visibility" Value="Visible" />
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Indicator" Property="BorderBrush" Value="#FF00BFB5" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="MenuButtonStyle" TargetType="Button" BasedOn="{StaticResource IconButtonStyle}">
+            <Setter Property="Width" Value="Auto" />
+            <Setter Property="Height" Value="39" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Chrome" Background="{TemplateBinding Background}"
+                                CornerRadius="9" Padding="10,0">
+                            <ContentPresenter VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Chrome" Property="Background" Value="#2370A9D4" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Chrome" Property="Background" Value="#3670A9D4" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="InlineEditorStyle" TargetType="TextBox">
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="SelectionBrush" Value="#77007BFF" />
+            <Setter Property="SelectionOpacity" Value="0.55" />
+            <Setter Property="Background" Value="#E9FFFFFF" />
+            <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+            <Setter Property="CaretBrush" Value="{StaticResource AccentBrush}" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TextBox">
+                        <Border x:Name="EditorBorder" CornerRadius="8"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="#85B9CFE6" BorderThickness="1">
+                            <ScrollViewer x:Name="PART_ContentHost" Margin="2,2"
+                                          VerticalScrollBarVisibility="Disabled"
+                                          HorizontalScrollBarVisibility="Disabled" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsKeyboardFocusWithin" Value="True">
+                                <Setter TargetName="EditorBorder" Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="AddInputStyle" TargetType="TextBox">
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+            <Setter Property="CaretBrush" Value="{StaticResource AccentBrush}" />
+            <Setter Property="SelectionBrush" Value="#77007BFF" />
+            <Setter Property="SelectionOpacity" Value="0.55" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TextBox">
+                        <ScrollViewer x:Name="PART_ContentHost" />
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="InvisibleScrollPageStyle" TargetType="RepeatButton">
+            <Setter Property="Focusable" Value="False" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="RepeatButton">
+                        <Border Background="Transparent" />
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="ThinScrollBarStyle" TargetType="ScrollBar">
+            <Setter Property="Width" Value="8" />
+            <Setter Property="MinWidth" Value="8" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ScrollBar">
+                        <Grid Width="8" Background="Transparent">
+                            <Track x:Name="PART_Track" IsDirectionReversed="True">
+                                <Track.DecreaseRepeatButton>
+                                    <RepeatButton Command="ScrollBar.PageUpCommand"
+                                                  Style="{StaticResource InvisibleScrollPageStyle}" />
+                                </Track.DecreaseRepeatButton>
+                                <Track.Thumb>
+                                    <Thumb>
+                                        <Thumb.Template>
+                                            <ControlTemplate TargetType="Thumb">
+                                                <Border x:Name="ThumbFill" Margin="2,0"
+                                                        MinHeight="28" CornerRadius="3"
+                                                        Background="#8596ADBD" />
+                                                <ControlTemplate.Triggers>
+                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                        <Setter TargetName="ThumbFill" Property="Background" Value="#BE0868EF" />
+                                                    </Trigger>
+                                                    <Trigger Property="IsDragging" Value="True">
+                                                        <Setter TargetName="ThumbFill" Property="Background" Value="{StaticResource AccentBrush}" />
+                                                    </Trigger>
+                                                </ControlTemplate.Triggers>
+                                            </ControlTemplate>
+                                        </Thumb.Template>
+                                    </Thumb>
+                                </Track.Thumb>
+                                <Track.IncreaseRepeatButton>
+                                    <RepeatButton Command="ScrollBar.PageDownCommand"
+                                                  Style="{StaticResource InvisibleScrollPageStyle}" />
+                                </Track.IncreaseRepeatButton>
+                            </Track>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="ResizeThumbStyle" TargetType="Thumb">
+            <Setter Property="Opacity" Value="0" />
+            <EventSetter Event="DragDelta" Handler="ResizeThumb_DragDelta" />
+            <EventSetter Event="DragCompleted" Handler="ResizeThumb_DragCompleted" />
+        </Style>
+    </Window.Resources>
+
+    <Grid>
+        <Border Margin="9" Padding="18,17,18,16" CornerRadius="22"
+                BorderBrush="#DCFFFFFF" BorderThickness="1">
+            <Border.Background>
+                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                    <GradientStop Color="#E8FFFFFF" Offset="0" />
+                    <GradientStop Color="#DDEAF6FF" Offset="1" />
+                </LinearGradientBrush>
+            </Border.Background>
+            <Border.Effect>
+                <DropShadowEffect Color="#FF193A59" Opacity="0.20"
+                                  BlurRadius="22" ShadowDepth="5" Direction="270" />
+            </Border.Effect>
+
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <Grid Grid.Row="0" MinHeight="43" Background="Transparent"
+                      MouseLeftButtonDown="DragHandle_MouseLeftButtonDown">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <Border Width="36" Height="36" CornerRadius="11"
+                            Background="#FF0875FA" VerticalAlignment="Center">
+                        <Path Data="M 8 13 L 11 16 L 17 9 M 8 23 L 11 26 L 17 19 M 21 12 L 28 12 M 21 22 L 28 22"
+                              Stroke="#FFFFFFFF" StrokeThickness="2"
+                              StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                              VerticalAlignment="Center" HorizontalAlignment="Center" />
+                    </Border>
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="11,0,5,0">
+                        <TextBlock Text="TODO" FontSize="16" FontWeight="SemiBold"
+                                   Foreground="{StaticResource AccentBrush}" />
+                        <TextBlock Text="{Binding TodoSummary}" FontSize="11"
+                                   Foreground="{StaticResource MutedBrush}" Margin="0,2,0,0" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                        <Button x:Name="SettingsButton" ToolTip="设置"
+                                Style="{StaticResource IconButtonStyle}"
+                                Click="SettingsButton_Click">
+                            <Path Data="M 9.15 4.95 L 9.89 2.84 L 14.11 2.84 L 14.85 4.95 L 16.68 6.01 L 18.87 5.59 L 20.99 9.25 L 19.53 10.94 L 19.53 13.06 L 20.99 14.75 L 18.87 18.41 L 16.68 17.99 L 14.85 19.05 L 14.11 21.16 L 9.89 21.16 L 9.15 19.05 L 7.32 17.99 L 5.13 18.41 L 3.01 14.75 L 4.47 13.06 L 4.47 10.94 L 3.01 9.25 L 5.13 5.59 L 7.32 6.01 Z M 12 9.4 A 2.6 2.6 0 1 0 12 14.6 A 2.6 2.6 0 1 0 12 9.4"
+                                  Width="17" Height="17" Stretch="Uniform"
+                                  Stroke="#FF49657A" StrokeThickness="1.7"
+                                  StrokeLineJoin="Round" Fill="Transparent" />
+                        </Button>
+                        <Button ToolTip="退出" Style="{StaticResource IconButtonStyle}"
+                                Click="CloseButton_Click" Margin="2,0,0,0">
+                            <Path Data="M 3 3 L 13 13 M 13 3 L 3 13"
+                                  Width="13" Height="13" Stroke="#FF49657A"
+                                  StrokeThickness="1.8" StrokeStartLineCap="Round"
+                                  StrokeEndLineCap="Round" />
+                        </Button>
+                    </StackPanel>
+                </Grid>
+
+                <Border Grid.Row="1" Height="1" Margin="0,14,0,8"
+                        Background="#84C6D7E4" />
+
+                <Grid Grid.Row="2">
+                    <TextBlock Text="这里还没有待办&#10;点击下方按钮，记录第一件事"
+                               HorizontalAlignment="Center" VerticalAlignment="Center"
+                               TextAlignment="Center" LineHeight="25"
+                               FontSize="13" Foreground="{StaticResource MutedBrush}">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding HasTodos}" Value="True">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                    <ScrollViewer FocusVisualStyle="{x:Null}"
+                                  VerticalScrollBarVisibility="Auto"
+                                  HorizontalScrollBarVisibility="Disabled">
+                        <ScrollViewer.Resources>
+                            <Style TargetType="{x:Type ScrollBar}"
+                                   BasedOn="{StaticResource ThinScrollBarStyle}" />
+                        </ScrollViewer.Resources>
+                        <ItemsControl FocusVisualStyle="{x:Null}"
+                                      ItemsSource="{Binding Todos}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border x:Name="TodoRow" MinHeight="47"
+                                            Margin="0,0,0,6" Padding="11,10"
+                                            Background="#BDEBFAFF"
+                                            BorderBrush="#D9FFFFFF" BorderThickness="1"
+                                            CornerRadius="11"
+                                            MouseLeftButtonDown="TodoRow_MouseLeftButtonDown">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <CheckBox Grid.Column="0" Margin="0,1,11,0"
+                                                      VerticalAlignment="Top"
+                                                      Style="{StaticResource TodoCheckStyle}"
+                                                      IsChecked="{Binding IsCompleted, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                            <TextBlock Grid.Column="1" VerticalAlignment="Center"
+                                                       Text="{Binding Content}" TextWrapping="Wrap"
+                                                       Foreground="{StaticResource TextBrush}"
+                                                       FontSize="13" LineHeight="20"
+                                                       Cursor="IBeam" ToolTip="双击编辑">
+                                                <TextBlock.Style>
+                                                    <Style TargetType="TextBlock">
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding IsCompleted}" Value="True">
+                                                                <Setter Property="Opacity" Value="0.58" />
+                                                                <Setter Property="TextDecorations" Value="Strikethrough" />
+                                                            </DataTrigger>
+                                                            <DataTrigger Binding="{Binding IsEditing}" Value="True">
+                                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                            </TextBlock>
+                                            <TextBox x:Name="TodoEditTextBox" Grid.Column="1"
+                                                     VerticalAlignment="Center"
+                                                     MinHeight="32" TextWrapping="Wrap"
+                                                     AcceptsReturn="False"
+                                                     FontSize="13" MaxLength="200"
+                                                     Text="{Binding Content, Mode=OneWay}"
+                                                     KeyDown="TodoEditTextBox_KeyDown"
+                                                     LostKeyboardFocus="TodoEditTextBox_LostKeyboardFocus">
+                                                <TextBox.Style>
+                                                    <Style TargetType="TextBox" BasedOn="{StaticResource InlineEditorStyle}">
+                                                        <Setter Property="Visibility" Value="Collapsed" />
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding IsEditing}" Value="True">
+                                                                <Setter Property="Visibility" Value="Visible" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBox.Style>
+                                            </TextBox>
+                                            <Button x:Name="DeleteButton" Grid.Column="2"
+                                                    Margin="4,0,0,0" ToolTip="删除"
+                                                    Style="{StaticResource IconButtonStyle}"
+                                                    Visibility="Hidden"
+                                                    Command="{Binding DataContext.DeleteTodoCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                    CommandParameter="{Binding}">
+                                                <Path Data="M 3 3 L 11 11 M 11 3 L 3 11"
+                                                      Width="12" Height="12" Stroke="#FF758BA1"
+                                                      StrokeThickness="1.6" StrokeStartLineCap="Round"
+                                                      StrokeEndLineCap="Round" />
+                                            </Button>
+                                        </Grid>
+                                    </Border>
+                                    <DataTemplate.Triggers>
+                                        <Trigger SourceName="TodoRow" Property="IsMouseOver" Value="True">
+                                            <Setter TargetName="TodoRow" Property="Background" Value="{StaticResource RowHoverBrush}" />
+                                            <Setter TargetName="DeleteButton" Property="Visibility" Value="Visible" />
+                                        </Trigger>
+                                    </DataTemplate.Triggers>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                </Grid>
+
+                <Grid Grid.Row="3" Margin="0,10,0,0">
+                    <Button Command="{Binding StartAddingCommand}" Height="43"
+                            Cursor="Hand" FocusVisualStyle="{x:Null}">
+                        <Button.Style>
+                            <Style TargetType="Button">
+                                <Setter Property="Visibility" Value="Visible" />
+                                <Setter Property="Template">
+                                    <Setter.Value>
+                                        <ControlTemplate TargetType="Button">
+                                            <Border x:Name="AddSurface" CornerRadius="11"
+                                                    Background="#FF0868EF"
+                                                    BorderBrush="#FF0868EF" BorderThickness="1">
+                                                <StackPanel Orientation="Horizontal"
+                                                            HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                    <TextBlock Text="+" FontSize="20" FontWeight="Light"
+                                                               Foreground="#FFFFFFFF"
+                                                               VerticalAlignment="Center" Margin="0,-2,8,0" />
+                                                    <TextBlock Text="添加待办" FontSize="13" FontWeight="SemiBold"
+                                                               Foreground="#FFFFFFFF" VerticalAlignment="Center" />
+                                                </StackPanel>
+                                            </Border>
+                                            <ControlTemplate.Triggers>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter TargetName="AddSurface" Property="Background" Value="#FF0059D6" />
+                                                </Trigger>
+                                                <Trigger Property="IsPressed" Value="True">
+                                                    <Setter TargetName="AddSurface" Property="Opacity" Value="0.7" />
+                                                </Trigger>
+                                            </ControlTemplate.Triggers>
+                                        </ControlTemplate>
+                                    </Setter.Value>
+                                </Setter>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsAdding}" Value="True">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                    </Button>
+
+                    <Border Height="43" Padding="10,4" CornerRadius="11"
+                            Background="#EEFFFFFF" BorderBrush="#FF70A3DE"
+                            BorderThickness="1"
+                            Visibility="{Binding IsAdding, Converter={StaticResource BooleanToVisibilityConverter}}">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBox x:Name="NewTodoTextBox" Grid.Column="0"
+                                     Style="{StaticResource AddInputStyle}"
+                                     VerticalContentAlignment="Center" FontSize="13"
+                                     MaxLength="200" Text="{Binding NewTodoText, UpdateSourceTrigger=PropertyChanged}"
+                                     KeyDown="NewTodoTextBox_KeyDown" />
+                            <Button Grid.Column="1" ToolTip="添加（Enter）"
+                                    Style="{StaticResource IconButtonStyle}"
+                                    Command="{Binding AddTodoCommand}">
+                                <Path Data="M 3 8 L 6.5 11.5 L 13 4.5"
+                                      Width="15" Height="15" Stroke="#FF00BFB5"
+                                      StrokeThickness="2" StrokeStartLineCap="Round"
+                                      StrokeEndLineCap="Round" />
+                            </Button>
+                            <Button Grid.Column="2" ToolTip="取消（Esc）"
+                                    Style="{StaticResource IconButtonStyle}"
+                                    Command="{Binding CancelAddingCommand}">
+                                <Path Data="M 3 3 L 11 11 M 11 3 L 3 11"
+                                      Width="13" Height="13" Stroke="#FF71869A"
+                                      StrokeThickness="1.7" StrokeStartLineCap="Round"
+                                      StrokeEndLineCap="Round" />
+                            </Button>
+                        </Grid>
+                    </Border>
+                </Grid>
+            </Grid>
+        </Border>
+
+        <Popup x:Name="SettingsPopup" PlacementTarget="{Binding ElementName=SettingsButton}"
+               Placement="Bottom" HorizontalOffset="-196" VerticalOffset="7"
+               AllowsTransparency="True" StaysOpen="False" PopupAnimation="Fade"
+               Opened="SettingsPopup_Opened">
+            <Border Width="226" Padding="7" CornerRadius="14"
+                    Background="#F8FAFDFF" BorderBrush="#D7D9E6EF"
+                    BorderThickness="1">
+                <Border.Effect>
+                    <DropShadowEffect Color="#FF294C68" Opacity="0.22"
+                                      BlurRadius="19" ShadowDepth="5" Direction="270" />
+                </Border.Effect>
+                <StackPanel>
+                    <TextBlock Text="设置" Foreground="{StaticResource MutedBrush}"
+                               FontSize="11" Margin="10,6,0,7" />
+                    <ToggleButton x:Name="StartupMenuItem" Height="39"
+                                  Cursor="Hand" FocusVisualStyle="{x:Null}"
+                                  Click="StartupMenuItem_Click">
+                        <ToggleButton.Template>
+                            <ControlTemplate TargetType="ToggleButton">
+                                <Border x:Name="Chrome" CornerRadius="9" Background="Transparent"
+                                        Padding="10,0">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="开机自启" FontSize="13"
+                                                   Foreground="{StaticResource TextBrush}"
+                                                   VerticalAlignment="Center" />
+                                        <Border x:Name="Track" Grid.Column="1"
+                                                Width="34" Height="19" CornerRadius="10"
+                                                Background="#6E8997A4" VerticalAlignment="Center">
+                                            <Ellipse x:Name="Knob" Width="13" Height="13"
+                                                     Fill="#FFFFFFFF" Margin="3"
+                                                     HorizontalAlignment="Left" />
+                                        </Border>
+                                    </Grid>
+                                </Border>
+                                <ControlTemplate.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter TargetName="Chrome" Property="Background" Value="#2370A9D4" />
+                                    </Trigger>
+                                    <Trigger Property="IsChecked" Value="True">
+                                        <Setter TargetName="Track" Property="Background" Value="{StaticResource TealBrush}" />
+                                        <Setter TargetName="Knob" Property="HorizontalAlignment" Value="Right" />
+                                        <Setter TargetName="Knob" Property="Fill" Value="#FFFFFFFF" />
+                                    </Trigger>
+                                </ControlTemplate.Triggers>
+                            </ControlTemplate>
+                        </ToggleButton.Template>
+                    </ToggleButton>
+                    <Border Height="1" Background="#B4D8E5ED" Margin="8,5" />
+                    <Button Style="{StaticResource MenuButtonStyle}" Click="OpenDataFolderButton_Click">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="25" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Path Data="M 2 5 L 7 5 L 9 7 L 18 7 L 18 16 L 2 16 Z"
+                                  Stroke="#FF0871E9" StrokeThickness="1.4"
+                                  Width="17" Height="17" Stretch="Uniform" VerticalAlignment="Center" />
+                            <TextBlock Grid.Column="1" Text="打开数据文件夹" FontSize="13"
+                                       Foreground="{StaticResource TextBrush}" VerticalAlignment="Center" />
+                        </Grid>
+                    </Button>
+                    <Button Style="{StaticResource MenuButtonStyle}" Click="ResetWindowButton_Click">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="25" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Path Data="M 16 6 A 7 7 0 1 0 18 11 M 16 6 L 16 2 M 16 6 L 12 6"
+                                  Stroke="#FF0871E9" StrokeThickness="1.5"
+                                  Width="17" Height="17" Stretch="Uniform"
+                                  StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                                  VerticalAlignment="Center" />
+                            <TextBlock Grid.Column="1" Text="恢复默认窗口" FontSize="13"
+                                       Foreground="{StaticResource TextBrush}" VerticalAlignment="Center" />
+                        </Grid>
+                    </Button>
+                </StackPanel>
+            </Border>
+        </Popup>
+
+        <Thumb Width="8" HorizontalAlignment="Left" Cursor="SizeWE"
+               Tag="Left" Style="{StaticResource ResizeThumbStyle}" />
+        <Thumb Width="8" HorizontalAlignment="Right" Cursor="SizeWE"
+               Tag="Right" Style="{StaticResource ResizeThumbStyle}" />
+        <Thumb Height="8" VerticalAlignment="Top" Cursor="SizeNS"
+               Tag="Top" Style="{StaticResource ResizeThumbStyle}" />
+        <Thumb Height="8" VerticalAlignment="Bottom" Cursor="SizeNS"
+               Tag="Bottom" Style="{StaticResource ResizeThumbStyle}" />
+        <Thumb Width="14" Height="14" HorizontalAlignment="Left" VerticalAlignment="Top"
+               Cursor="SizeNWSE" Tag="TopLeft" Style="{StaticResource ResizeThumbStyle}" />
+        <Thumb Width="14" Height="14" HorizontalAlignment="Right" VerticalAlignment="Top"
+               Cursor="SizeNESW" Tag="TopRight" Style="{StaticResource ResizeThumbStyle}" />
+        <Thumb Width="14" Height="14" HorizontalAlignment="Left" VerticalAlignment="Bottom"
+               Cursor="SizeNESW" Tag="BottomLeft" Style="{StaticResource ResizeThumbStyle}" />
+        <Thumb Width="16" Height="16" HorizontalAlignment="Right" VerticalAlignment="Bottom"
+               Cursor="SizeNWSE" Tag="BottomRight" Style="{StaticResource ResizeThumbStyle}" />
+        <Path Margin="0,0,14,14" HorizontalAlignment="Right" VerticalAlignment="Bottom"
+              Data="M 0 7 L 7 0 M 4 7 L 7 4" Stroke="#805C8AAE"
+              StrokeThickness="1" IsHitTestVisible="False" />
+    </Grid>
+</Window>
