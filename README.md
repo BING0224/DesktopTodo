@@ -3,7 +3,7 @@
 一个轻量的 Windows 桌面待办组件，基于 C#、.NET 8 和 WPF。界面采用浅色半透明面板，使用与应用图标一致的蓝色、青绿色。
 ## Screenshot
 
-![DesktopTodo](Assets/screenshot.png)DesktopTodo/Assets/screenshot.png
+![DesktopTodo](DesktopTodo/Assets/screenshot.png)
 
 ## 已实现
 
