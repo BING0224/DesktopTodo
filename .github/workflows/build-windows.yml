@@ -1,0 +1,26 @@
+name: Build Windows x64
+
+on:
+  push:
+    branches: [main, release/v0.3.0]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build DesktopTodo
+        shell: cmd
+        run: call build.cmd /no-pause
+      - name: Upload executable
+        uses: actions/upload-artifact@v4
+        with:
+          name: DesktopTodo-v0.3.0-win-x64
+          path: build/DesktopTodo.exe
+          if-no-files-found: error
