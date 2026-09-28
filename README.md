@@ -1,78 +1,48 @@
-# DesktopTodo v0.1
+# DesktopTodov0.2.0
 
-一个轻量的 Windows 桌面待办组件，基于 C#、.NET 8 和 WPF。界面采用浅色半透明面板，使用与应用图标一致的蓝色、青绿色。
+一个放在 Windows 桌面的轻量待办组件。当前版本为 **v0.2.0（原生 Win32）**：使用 C++17、Win32 和 GDI+，保留 v0.1.0 的桌面常驻体验，并加入截止时间和资源关联。无需登录，待办保存在本机。
 ## Screenshot
 
 ![DesktopTodo](DesktopTodo/Assets/screenshot.png)
 
-## 已实现
+## 下载与运行
 
-- 添加、勾选完成、删除待办
-- 双击待办文字进行原位编辑，长内容在编辑时自动换行
-- 圆角无边框界面；待办较多时显示细滚动条
-- 不显示在任务栏和 Alt+Tab 切换列表中
-- 使用 `Win + D` 显示桌面时留在桌面上；切回普通应用后位于应用窗口下方
-- 自由拖动和八方向缩放
-- 接近屏幕右侧、底部时自动吸附
-- 首次启动默认尺寸为 426 × 460，位于桌面右下角
-- 一键恢复 426 × 460 默认尺寸和右下角位置
-- 一键打开本地 JSON 数据文件夹
-- 可在设置菜单中开启或关闭开机自启
-- 自动保存待办、完成状态、窗口位置和尺寸
-- 再次启动时恢复上次状态
-- JSON 无法解析时备份损坏文件并使用默认数据，避免程序无法启动
+适用于 **Windows 10/11 x64**。前往 [Releases](https://github.com/BING0224/DesktopTodo/releases) 下载 v0.2.0 的 `DesktopTodo.exe`，放到固定位置后双击运行。发布版包含所需的 C++ 运行库，不需要安装 .NET 或 Visual Studio。若启用开机自启，移动 EXE 后请在设置中重新切换一次开机自启。
 
-## 运行
+> Releases 页面自动生成的 “Source code (zip)” 是源码，不是可直接运行的程序；请下载发布附件中的 EXE。
 
-系统要求：Windows 10/11。使用源码运行或打包时，需要安装 [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0)。
+## 相比 v0.1.0
 
-双击根目录的 `run.cmd`。也可以用 Visual Studio 2022 打开 `DesktopTodo/DesktopTodo.csproj` 后运行。
+| 项目 | v0.1.0 | v0.2.0 |
+| --- | --- | --- |
+| 实现 | C# / WPF / .NET 8 | C++17 / 原生 Win32，无需 .NET 运行时 |
+| 待办 | 添加、完成、编辑、删除 | 增加截止日期和时间、自动排序、到期提醒配色 |
+| 资源 | 无 | 可关联文件、文件夹或网站，直接打开或定位 |
+| 操作 | 原位编辑、桌面窗口 | 延续原有体验，优化多行文字、滚动和操作样式，删除前二次确认 |
 
-## 发布为单个 EXE
+本版本不承诺固定的内存占用数值；实际用量会随系统和待办数量变化。
 
-双击 `publish-win-x64.cmd`。完成后可执行文件位于：
+## 主要功能
 
-```text
-publish\win-x64\DesktopTodo.exe
-```
+- 添加、勾选完成、双击原位编辑和删除待办；内容可换行。删除待办或移除已关联资源时会先询问确认。
+- 添加时可选日期和具体时间，也可选择“当天内”或不设截止时间。列表按 **逾期 → 未到期 → 长期 → 已完成** 排列；当天截止的卡片为暖黄色，距离截止时间不超过两小时及逾期卡片为红色。逾期时间块显示“逾期”，状态在关键时间点自动刷新。
+- 待办可关联文件、文件夹和网站。点击文件名在资源管理器中定位文件，点击文件夹名打开文件夹，点击网站名在默认浏览器中打开；点击资源右侧的 × 可确认移除。关联只保存路径或网址，不会复制文件。
+- 蓝白半透明圆角界面；自由拖动、八方向实时缩放、靠近右侧和底部自动吸附。待办较多时可滚动；首次启动默认大小为 426 × 460，默认位于桌面右下角。
+- 窗口不出现在任务栏及 Alt+Tab 列表；按 Win+D 返回桌面后仍显示在桌面上。
+- 设置菜单支持开机自启、打开数据文件夹和恢复默认窗口。待办、完成状态、截止时间、资源及窗口位置自动保存。
 
-该发布方式包含 .NET 运行时，将 `DesktopTodo.exe` 复制到其他 Windows x64 电脑即可运行，无需另行安装 .NET。发布目录中的 `.pdb` 是调试文件，运行时不需要。
+## 从 v0.1.0 升级
 
-## 使用方法
+先退出旧版 WPF，再运行新版 EXE。新版沿用 `%LocalAppData%\DesktopTodo\todos.json` 和 `settings.json`，会在首次运行时为旧数据生成 `.before-native.bak` 备份；本版增加的截止时间与资源字段也会写入 `todos.json`。如需手动备份，可在升级前复制整个 `%LocalAppData%\DesktopTodo` 文件夹。
 
-- 拖动顶部 `TODO` 区域移动窗口。
-- 拖动窗口边缘或四角缩放。
-- 点击右上角齿轮打开设置菜单。
-- 设置菜单中可切换开机自启、打开 `%LocalAppData%\DesktopTodo`，或恢复默认窗口。
-- 点击“添加待办”后输入内容，按 `Enter` 添加，按 `Esc` 取消。
-- 添加待办时也可以点击输入框右侧的 `×` 取消。
-- 双击待办文字可编辑；按 `Enter` 或点击别处保存，按 `Esc` 取消。
-- 编辑长待办时，文字会根据窗口宽度自动换行；待办列表超出窗口时，可用鼠标滚轮或右侧细滚动条查看。
-- 勾选待办后文字会变淡并添加删除线。
-- 鼠标移到待办上，点击右侧 `×` 删除。
-- 点击右上角 `×` 退出程序。
+不要同时运行 WPF 与 Win32 版本：旧版保存 JSON 时可能丢弃新版新增字段。曾开启开机自启时，请确认设置中的启动项指向最终放置的原生版 EXE。
 
-## 本地数据
+## 从源码构建
 
-数据保存在：
+安装 Visual Studio 2022 的“使用 C++ 的桌面开发”组件及 Windows SDK。解压源码后，在项目根目录运行：
 
-```text
-%LocalAppData%\DesktopTodo\
-├── todos.json
-└── settings.json
-```
-
-程序完全离线，不需要账号或服务器。
-
-首次运行使用默认窗口尺寸与位置；之后会优先恢复 `settings.json` 中保存的状态。升级版本后想应用新的默认尺寸，请点击“设置 → 恢复默认窗口”，不需要删除待办数据。
-## License
-
-DesktopTodo is licensed under the GNU General Public License v3.0.
-
-You are free to:
-- Use the software
-- Study the source code
-- Modify the software
-- Redistribute modified versions
-
-Any redistributed version must also be released under GPL v3.
+| 文件 | 作用 |
+| --- | --- |
+| `build.cmd` | 编译到 `build\DesktopTodo.exe`，结束时显示编译结果 |
+| `run.cmd` | 编译并启动程序 |
+| `publish-win-x64.cmd` | 编译并复制 EXE 到 `publish\win-x64\DesktopTodo.exe` |
