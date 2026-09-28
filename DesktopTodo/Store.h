@@ -22,6 +22,9 @@ struct Todo {
 struct Placement {
     bool saved = false;
     double x = 0, y = 0, width = 426, height = 460;
+    bool docked = false;
+    double dockY = 1.0; // Fraction of the available vertical travel on the monitor.
+    std::wstring dockMonitor;
     Json original = Json(Json::Object{});
 };
 

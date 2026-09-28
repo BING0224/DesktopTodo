@@ -162,6 +162,11 @@ Placement Store::loadPlacement() const {
     p.x = Field(json, L"Left").numberOr(); p.y = Field(json, L"Top").numberOr();
     p.width = Field(json, L"Width").numberOr(426);
     p.height = Field(json, L"Height").numberOr(460);
+    p.docked = Field(json, L"Docked").boolOr();
+    p.dockY = Field(json, L"DockY").numberOr(1.0);
+    p.dockMonitor = Field(json, L"DockMonitor").stringOr();
+    if (!std::isfinite(p.dockY)) p.dockY = 1.0;
+    p.dockY = (std::clamp)(p.dockY, 0.0, 1.0);
     if (!std::isfinite(p.width) || p.width < 260 || p.width > 10000) p.width = 426;
     if (!std::isfinite(p.height) || p.height < 220 || p.height > 10000) p.height = 460;
     if (!std::isfinite(p.x) || !std::isfinite(p.y)) p.saved = false;
@@ -204,6 +209,9 @@ bool Store::savePlacement(const Placement& p) const {
     json.object()[L"HasWindowPlacement"] = Json(true);
     json.object()[L"Left"] = Json(p.x); json.object()[L"Top"] = Json(p.y);
     json.object()[L"Width"] = Json(p.width); json.object()[L"Height"] = Json(p.height);
+    json.object()[L"Docked"] = Json(p.docked);
+    json.object()[L"DockY"] = Json(p.dockY);
+    json.object()[L"DockMonitor"] = Json(p.dockMonitor);
     return SaveFile(folder_ + L"\\settings.json", json);
 }
 

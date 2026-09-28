@@ -27,7 +27,19 @@ constexpr UINT menuFile = 301, menuFolder = 302, menuUrl = 303,
                menuPendingBase = 500;
 const wchar_t* runKey = L"Software\\Microsoft\\Windows\\CurrentVersion\\Run";
 const wchar_t* windowClass = L"DesktopTodoNativeWindow";
+const wchar_t* dockClass = L"DesktopTodoNativeDock";
 const wchar_t* editHostClass = L"DesktopTodoNativeEditHost";
+constexpr float dockWidth = 62.0f, dockHeight = 60.0f;
+
+struct MonitorSearch { const std::wstring* name; HMONITOR found = nullptr; };
+BOOL CALLBACK FindSavedMonitor(HMONITOR monitor, HDC, LPRECT, LPARAM context) {
+    auto* search = reinterpret_cast<MonitorSearch*>(context);
+    MONITORINFOEXW info{}; info.cbSize = sizeof(info);
+    if (GetMonitorInfoW(monitor, &info) && _wcsicmp(info.szDevice, search->name->c_str()) == 0) {
+        search->found = monitor; return FALSE;
+    }
+    return TRUE;
+}
 
 Color rgba(BYTE a, BYTE r, BYTE g, BYTE b) { return Color(a, r, g, b); }
 Color blue() { return rgba(255, 8, 104, 239); }
@@ -142,7 +154,9 @@ bool pickResourceTarget(HWND owner, Resource& resource) {
 
 }
 
-MainWindow::MainWindow(HINSTANCE instance) : instance_(instance), placement_(store_.loadPlacement()), todos_(store_.loadTodos()) {}
+MainWindow::MainWindow(HINSTANCE instance, bool fromStartup)
+    : instance_(instance), placement_(store_.loadPlacement()), todos_(store_.loadTodos()),
+      docked_(fromStartup || placement_.docked) {}
 
 MainWindow::~MainWindow() {
     if (editFont_) DeleteObject(editFont_);
@@ -158,6 +172,10 @@ bool MainWindow::createAndShow() {
     cls.hIcon = static_cast<HICON>(LoadImageW(instance_, MAKEINTRESOURCEW(1), IMAGE_ICON, 32, 32, LR_DEFAULTCOLOR));
     cls.hIconSm = static_cast<HICON>(LoadImageW(instance_, MAKEINTRESOURCEW(1), IMAGE_ICON, 16, 16, LR_DEFAULTCOLOR));
     if (!RegisterClassExW(&cls)) return false;
+    WNDCLASSEXW dockCls{sizeof(dockCls)};
+    dockCls.hInstance = instance_; dockCls.lpszClassName = dockClass;
+    dockCls.lpfnWndProc = DockWindowProc; dockCls.hCursor = LoadCursorW(nullptr, IDC_HAND);
+    if (!RegisterClassExW(&dockCls)) return false;
     WNDCLASSEXW editorClass{sizeof(editorClass)};
     editorClass.hInstance = instance_; editorClass.lpszClassName = editHostClass;
     editorClass.lpfnWndProc = EditorHostProc;
@@ -179,12 +197,175 @@ bool MainWindow::createAndShow() {
                              WS_POPUP | WS_CLIPCHILDREN, x, y, w, h,
                              nullptr, nullptr, instance_, this);
     if (!hwnd_) return false;
+    dockHwnd_ = CreateWindowExW(WS_EX_LAYERED | WS_EX_TOOLWINDOW, dockClass, L"DesktopTodo",
+                                 WS_POPUP, 0, 0, pixel(dockWidth, scale_), pixel(dockHeight, scale_),
+                                 nullptr, nullptr, instance_, this);
+    if (!dockHwnd_) { DestroyWindow(hwnd_); return false; }
     migrateStartup();
-    ShowWindow(hwnd_, SW_SHOWNOACTIVATE);
-    draw();
-    desktop_ = std::make_unique<DesktopHost>(hwnd_);
+    placement_.docked = docked_;
+    placeDock();
+    if (docked_) {
+        ShowWindow(dockHwnd_, SW_SHOWNOACTIVATE);
+        drawDock();
+    } else {
+        ShowWindow(hwnd_, SW_SHOWNOACTIVATE);
+        draw();
+    }
+    desktop_ = std::make_unique<DesktopHost>(docked_ ? dockHwnd_ : hwnd_);
     desktop_->arrange(true);
     return true;
+}
+
+int MainWindow::pendingCount() const {
+    return static_cast<int>(std::count_if(todos_.begin(), todos_.end(),
+                                          [](const Todo& todo) { return !todo.completed; }));
+}
+
+void MainWindow::redraw() {
+    if (docked_) {
+        if (dockHwnd_ && IsWindowVisible(dockHwnd_)) drawDock();
+    } else if (hwnd_ && IsWindowVisible(hwnd_) && !IsIconic(hwnd_)) draw();
+}
+
+void MainWindow::placeDock() {
+    if (!dockHwnd_ || !hwnd_) return;
+    MonitorSearch search{&placement_.dockMonitor};
+    if (!placement_.dockMonitor.empty())
+        EnumDisplayMonitors(nullptr, nullptr, FindSavedMonitor, reinterpret_cast<LPARAM>(&search));
+    HMONITOR monitor = search.found ? search.found : MonitorFromWindow(hwnd_, MONITOR_DEFAULTTONEAREST);
+    MONITORINFOEXW info{}; info.cbSize = sizeof(info);
+    if (!GetMonitorInfoW(monitor, &info)) return;
+    float dockScale = GetDpiForWindow(dockHwnd_) / 96.0f;
+    int w = pixel(dockWidth, dockScale), h = pixel(dockHeight, dockScale);
+    const RECT& area = info.rcWork;
+    int travel = (std::max)(0L, area.bottom - area.top - h);
+    int y = area.top + static_cast<int>(std::lround(travel * placement_.dockY));
+    SetWindowPos(dockHwnd_, nullptr, area.right - w, y, w, h,
+                 SWP_NOZORDER | SWP_NOACTIVATE);
+    // A disconnected monitor falls back to the panel's current monitor.
+    if (!search.found) placement_.dockMonitor = info.szDevice;
+}
+
+void MainWindow::saveDockPosition() {
+    if (!dockHwnd_) return;
+    MONITORINFOEXW info{}; info.cbSize = sizeof(info);
+    HMONITOR monitor = MonitorFromWindow(dockHwnd_, MONITOR_DEFAULTTONEAREST);
+    RECT rect{}; GetWindowRect(dockHwnd_, &rect);
+    if (!GetMonitorInfoW(monitor, &info)) return;
+    int travel = (std::max)(0L, info.rcWork.bottom - info.rcWork.top - (rect.bottom - rect.top));
+    placement_.dockMonitor = info.szDevice;
+    placement_.dockY = travel ? (std::clamp)((rect.top - info.rcWork.top) / static_cast<double>(travel), 0.0, 1.0) : 0.0;
+    store_.savePlacement(placement_);
+}
+
+void MainWindow::fitExpandedToDock() {
+    if (!hwnd_ || !dockHwnd_) return;
+    MONITORINFO info{sizeof(info)};
+    if (!GetMonitorInfoW(MonitorFromWindow(dockHwnd_, MONITOR_DEFAULTTONEAREST), &info)) return;
+    RECT current{}, tab{};
+    GetWindowRect(hwnd_, &current); GetWindowRect(dockHwnd_, &tab);
+    int margin = pixel(16, scale_);
+    int workW = static_cast<int>(info.rcWork.right - info.rcWork.left);
+    int workH = static_cast<int>(info.rcWork.bottom - info.rcWork.top);
+    int w = (std::min)(static_cast<int>(current.right - current.left), (std::max)(1, workW - margin * 2));
+    int h = (std::min)(static_cast<int>(current.bottom - current.top), (std::max)(1, workH - margin * 2));
+    int x = (std::max)(static_cast<int>(info.rcWork.left), static_cast<int>(info.rcWork.right) - w - margin);
+    int center = tab.top + (tab.bottom - tab.top) / 2;
+    int y = (std::clamp)(center - h / 2, static_cast<int>(info.rcWork.top),
+                         (std::max)(static_cast<int>(info.rcWork.top), static_cast<int>(info.rcWork.bottom) - h));
+    SetWindowPos(hwnd_, nullptr, x, y, w, h, SWP_NOZORDER | SWP_NOACTIVATE);
+}
+
+void MainWindow::collapse() {
+    if (docked_ || !dockHwnd_ || confirmation_ || resourceEditor_ || picker_) return;
+    dismissResourcePopup();
+    menu_ = false;
+    if (editing_ >= 0) commitEdit();
+    savePlacement();
+    placement_.docked = docked_ = true;
+    store_.savePlacement(placement_);
+    if (addHost_) ShowWindow(addHost_, SW_HIDE);
+    if (rowHost_) ShowWindow(rowHost_, SW_HIDE);
+    updateResourceTooltip({});
+    ShowWindow(hwnd_, SW_HIDE);
+    ShowWindow(dockHwnd_, SW_SHOWNOACTIVATE);
+    if (desktop_) { desktop_->setWindow(dockHwnd_); desktop_->arrange(true); }
+    drawDock();
+}
+
+void MainWindow::expand() {
+    if (!docked_) return;
+    docked_ = placement_.docked = false;
+    store_.savePlacement(placement_);
+    fitExpandedToDock();
+    ShowWindow(dockHwnd_, SW_HIDE);
+    ShowWindow(hwnd_, SW_SHOWNOACTIVATE);
+    if (desktop_) { desktop_->setWindow(hwnd_); desktop_->arrange(true); }
+    draw();
+    savePlacement();
+}
+
+void MainWindow::drawDock() {
+    if (!dockHwnd_) return;
+    RECT rect{}; GetWindowRect(dockHwnd_, &rect);
+    int w = rect.right - rect.left, h = rect.bottom - rect.top;
+    if (w <= 0 || h <= 0) return;
+    HDC screen = GetDC(nullptr), memory = CreateCompatibleDC(screen);
+    BITMAPINFO info{}; info.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+    info.bmiHeader.biWidth = w; info.bmiHeader.biHeight = -h;
+    info.bmiHeader.biPlanes = 1; info.bmiHeader.biBitCount = 32; info.bmiHeader.biCompression = BI_RGB;
+    void* pixels = nullptr;
+    HBITMAP dib = CreateDIBSection(screen, &info, DIB_RGB_COLORS, &pixels, nullptr, 0);
+    if (!dib || !memory || !pixels) {
+        if (dib) DeleteObject(dib);
+        if (memory) DeleteDC(memory);
+        ReleaseDC(nullptr, screen); return;
+    }
+    HGDIOBJ previous = SelectObject(memory, dib);
+    {
+        Bitmap bitmap(w, h, w * 4, PixelFormat32bppPARGB, static_cast<BYTE*>(pixels));
+        Graphics g(&bitmap);
+        g.SetSmoothingMode(SmoothingModeAntiAlias);
+        g.SetTextRenderingHint(TextRenderingHintAntiAlias);
+        g.Clear(Color(0, 0, 0, 0));
+        g.ScaleTransform(w / dockWidth, h / dockHeight);
+        // The handle itself meets the right screen edge. No opaque white card
+        // surrounds it, so the wallpaper remains visible above and below.
+        auto tab = [](GraphicsPath& path, REAL left, REAL top, REAL right, REAL bottom, REAL radius) {
+            path.AddArc(left, top, radius * 2, radius * 2, 180, 90);
+            path.AddLine(left + radius, top, right, top);
+            path.AddLine(right, top, right, bottom);
+            path.AddLine(right, bottom, left + radius, bottom);
+            path.AddArc(left, bottom - radius * 2, radius * 2, radius * 2, 90, 90);
+            path.CloseFigure();
+        };
+        GraphicsPath shadow;
+        tab(shadow, 10, 9, 62, 56, 14);
+        SolidBrush shadowBrush(rgba(38, 15, 55, 94));
+        g.FillPath(&shadowBrush, &shadow);
+        GraphicsPath handle;
+        tab(handle, 12, 6, 62, 54, 14);
+        LinearGradientBrush fill(PointF(12, 30), PointF(62, 30),
+                                 dockHover_ ? rgba(255, 0, 84, 216) : blue(),
+                                 dockHover_ ? rgba(255, 0, 166, 167) : teal());
+        g.FillPath(&fill, &handle);
+        const Color white = rgba(255, 255, 255, 255);
+        line(g, 22, 24, 25, 27, white, 2); line(g, 25, 27, 31, 20, white, 2);
+        line(g, 22, 38, 25, 41, white, 2); line(g, 25, 41, 31, 34, white, 2);
+        line(g, 35, 24, 51, 24, white, 2); line(g, 35, 38, 51, 38, white, 2);
+        int count = pendingCount();
+        if (count > 0) {
+            std::wstring text = count > 99 ? L"99+" : std::to_wstring(count);
+            float badgeW = count > 99 ? 28.0f : (count > 9 ? 23.0f : 20.0f);
+            rounded(g, RectF(3, 2, badgeW, 20), 10, rgba(255, 14, 112, 190), white, 1.7f);
+            label(g, text, 3, 2, badgeW, 20, count > 99 ? 10.0f : 11.0f, white, true, StringAlignmentCenter);
+        }
+    }
+    POINT source{0, 0}, destination{rect.left, rect.top};
+    SIZE size{w, h};
+    BLENDFUNCTION blend{AC_SRC_OVER, 0, 255, AC_SRC_ALPHA};
+    UpdateLayeredWindow(dockHwnd_, screen, &destination, &size, memory, &source, 0, &blend, ULW_ALPHA);
+    SelectObject(memory, previous); DeleteObject(dib); DeleteDC(memory); ReleaseDC(nullptr, screen);
 }
 
 void MainWindow::layout() {
@@ -299,7 +480,7 @@ void MainWindow::draw() {
         line(g, 35, 43, 38, 46, iconWhite, 2); line(g, 38, 46, 44, 39, iconWhite, 2);
         line(g, 35, 53, 38, 56, iconWhite, 2); line(g, 38, 56, 44, 49, iconWhite, 2);
         line(g, 47, 42, 55, 42, iconWhite, 2); line(g, 47, 52, 55, 52, iconWhite, 2);
-        label(g, L"TODO", 74, 29, right - 145, 21, 16, rgba(225, 8, 104, 239), true);
+        label(g, L"TODO", 74, 29, right - 177, 21, 16, rgba(225, 8, 104, 239), true);
         SYSTEMTIME today{}; GetLocalTime(&today);
         std::wstring todayDate = DateString(today.wYear, today.wMonth, today.wDay);
         wchar_t clock[12]{};
@@ -315,11 +496,16 @@ void MainWindow::draw() {
         std::wstring summary = L"待办 " + std::to_wstring(remaining) +
                                L" · 逾期 " + std::to_wstring(overdueCount) +
                                L" · 完成 " + std::to_wstring(todos_.size() - remaining);
-        label(g, summary, 74, 51, right - 145, 15, 11,
+        label(g, summary, 74, 51, right - 177, 15, 11,
               overdueCount ? rgba(235, 170, 67, 83) : muted());
-        float settingsX = right - 62, closeX = right - 30;
+        float dockX = right - 94, settingsX = right - 62, closeX = right - 30;
+        if (hoverAction_ == HitKind::Dock) rounded(g, RectF(dockX, 32, 30, 30), 9, rgba(34, 112, 169, 212));
         if (hoverAction_ == HitKind::Settings || menu_) rounded(g, RectF(settingsX, 32, 30, 30), 9, rgba(34, 112, 169, 212));
         if (hoverAction_ == HitKind::Close) rounded(g, RectF(closeX, 32, 30, 30), 9, rgba(34, 112, 169, 212));
+        // Chevron pointing to the screen edge: collapse the panel into its dock.
+        line(g, dockX + 11, 40, dockX + 18, 47, muted(), 1.8f);
+        line(g, dockX + 18, 47, dockX + 11, 54, muted(), 1.8f);
+        line(g, dockX + 21, 40, dockX + 21, 54, muted(), 1.5f);
         PointF gearCenter(settingsX + 15, 47);
         GraphicsPath gear;
         for (int k = 0; k < 24; ++k) {
@@ -554,6 +740,11 @@ void MainWindow::draw() {
 
 void MainWindow::positionEditors() {
     if (!hwnd_) return;
+    if (docked_) {
+        if (addHost_) ShowWindow(addHost_, SW_HIDE);
+        if (rowHost_) ShowWindow(rowHost_, SW_HIDE);
+        return;
+    }
     POINT origin{0, 0}; ClientToScreen(hwnd_, &origin);
     auto place = [](HWND host, int x, int y, int w, int h) {
         RECT current{}; GetWindowRect(host, &current);
@@ -621,6 +812,7 @@ MainWindow::Hit MainWindow::hit(float x, float y) const {
     }
     float right = width_ - 27;
     if (y >= 32 && y <= 62) {
+        if (x >= right - 94 && x < right - 64) return {HitKind::Dock};
         if (x >= right - 62 && x < right - 32) return {HitKind::Settings};
         if (x >= right - 30 && x <= right) return {HitKind::Close};
     }
@@ -967,6 +1159,7 @@ void MainWindow::updateResourceTooltip(const Hit& hit) {
     if (hit.kind == HitKind::ResourceOpen &&
         hit.index < todos_.size() && hit.resource < todos_[hit.index].resources.size())
         target = todos_[hit.index].resources[hit.resource].target;
+    if (hit.kind == HitKind::Dock) target = L"收起到桌面右侧";
     if (target == tooltipText_) return;
     TOOLINFOW info{sizeof(info)};
     info.uFlags = TTF_TRACK | TTF_ABSOLUTE;
@@ -984,6 +1177,7 @@ void MainWindow::updateResourceTooltip(const Hit& hit) {
 void MainWindow::click(const Hit& action) {
     switch (action.kind) {
         case HitKind::Close: PostMessageW(hwnd_, WM_CLOSE, 0, 0); break;
+        case HitKind::Dock: collapse(); break;
         case HitKind::Settings:
             if (editing_ >= 0) commitEdit();
             menu_ = !menu_; redraw(); break;
@@ -1126,7 +1320,9 @@ bool MainWindow::startupEnabled() const {
     if (result != ERROR_SUCCESS || type != REG_SZ || bytes < sizeof(wchar_t)) return false;
     value[32767] = L'\0';
     std::wstring exe = currentExecutable();
-    return !exe.empty() && _wcsicmp(value, (L"\"" + exe + L"\"").c_str()) == 0;
+    return !exe.empty() &&
+           (_wcsicmp(value, (L"\"" + exe + L"\" --startup").c_str()) == 0 ||
+            _wcsicmp(value, (L"\"" + exe + L"\"").c_str()) == 0);
 }
 
 bool MainWindow::setStartup(bool enabled) const {
@@ -1136,7 +1332,7 @@ bool MainWindow::setStartup(bool enabled) const {
     LONG result;
     if (enabled) {
         std::wstring exe = currentExecutable();
-        std::wstring cmd = L"\"" + exe + L"\"";
+        std::wstring cmd = L"\"" + exe + L"\" --startup";
         result = exe.empty() ? ERROR_FILE_NOT_FOUND :
             RegSetValueExW(key, L"DesktopTodo", 0, REG_SZ,
                            reinterpret_cast<const BYTE*>(cmd.c_str()),
@@ -1152,7 +1348,20 @@ void MainWindow::migrateStartup() const {
     DWORD size = 0;
     LONG result = RegQueryValueExW(key, L"DesktopTodo", nullptr, nullptr, nullptr, &size);
     RegCloseKey(key);
-    if (result == ERROR_SUCCESS && size > sizeof(wchar_t) && !startupEnabled()) setStartup(true);
+    if (result == ERROR_SUCCESS && size > sizeof(wchar_t)) {
+        // Upgrade existing Run entries to the explicit startup mode.
+        if (!startupEnabled()) setStartup(true);
+        else {
+            wchar_t value[32768]{}; DWORD bytes = sizeof(value), type = REG_SZ;
+            if (RegOpenKeyExW(HKEY_CURRENT_USER, runKey, 0, KEY_QUERY_VALUE, &key) == ERROR_SUCCESS) {
+                if (RegQueryValueExW(key, L"DesktopTodo", nullptr, &type,
+                                    reinterpret_cast<BYTE*>(value), &bytes) == ERROR_SUCCESS &&
+                    type == REG_SZ && _wcsicmp(value, (L"\"" + currentExecutable() + L"\"").c_str()) == 0)
+                    setStartup(true);
+                RegCloseKey(key);
+            }
+        }
+    }
 }
 
 void MainWindow::openDataFolder() const {
@@ -1173,6 +1382,76 @@ LRESULT CALLBACK MainWindow::WindowProc(HWND hwnd, UINT message, WPARAM wparam, 
         SetWindowLongPtrW(hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(self));
     }
     return self ? self->message(message, wparam, lparam) : DefWindowProcW(hwnd, message, wparam, lparam);
+}
+
+LRESULT CALLBACK MainWindow::DockWindowProc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam) {
+    auto* self = reinterpret_cast<MainWindow*>(GetWindowLongPtrW(hwnd, GWLP_USERDATA));
+    if (message == WM_NCCREATE) {
+        auto* info = reinterpret_cast<CREATESTRUCTW*>(lparam);
+        self = static_cast<MainWindow*>(info->lpCreateParams);
+        self->dockHwnd_ = hwnd;
+        SetWindowLongPtrW(hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(self));
+    }
+    return self ? self->dockMessage(message, wparam, lparam) : DefWindowProcW(hwnd, message, wparam, lparam);
+}
+
+LRESULT MainWindow::dockMessage(UINT msg, WPARAM wp, LPARAM lp) {
+    switch (msg) {
+        case WM_ERASEBKGND: return 1;
+        case WM_PAINT: {
+            PAINTSTRUCT ps{}; BeginPaint(dockHwnd_, &ps); EndPaint(dockHwnd_, &ps);
+            drawDock(); return 0;
+        }
+        case WM_SETCURSOR:
+            SetCursor(LoadCursorW(nullptr, dockDragging_ ? IDC_SIZENS : IDC_HAND)); return TRUE;
+        case WM_LBUTTONDOWN:
+            dockDragging_ = true; dockMoved_ = false;
+            GetCursorPos(&dockDown_); GetWindowRect(dockHwnd_, &dockStart_);
+            SetCapture(dockHwnd_); SetFocus(dockHwnd_); return 0;
+        case WM_MOUSEMOVE: {
+            if (!dockHover_) {
+                dockHover_ = true;
+                TRACKMOUSEEVENT track{sizeof(track), TME_LEAVE, dockHwnd_, 0};
+                TrackMouseEvent(&track); drawDock();
+            }
+            if (!dockDragging_) return 0;
+            POINT point{}; GetCursorPos(&point);
+            if (abs(point.x - dockDown_.x) > pixel(4, scale_) ||
+                abs(point.y - dockDown_.y) > pixel(4, scale_)) dockMoved_ = true;
+            if (!dockMoved_) return 0;
+            HMONITOR monitor = MonitorFromPoint(point, MONITOR_DEFAULTTONEAREST);
+            MONITORINFOEXW info{}; info.cbSize = sizeof(info);
+            if (!GetMonitorInfoW(monitor, &info)) return 0;
+            RECT rect{}; GetWindowRect(dockHwnd_, &rect);
+            int w = rect.right - rect.left, h = rect.bottom - rect.top;
+            int y = (std::clamp)(static_cast<int>(dockStart_.top + point.y - dockDown_.y),
+                                 static_cast<int>(info.rcWork.top),
+                                 (std::max)(static_cast<int>(info.rcWork.top), static_cast<int>(info.rcWork.bottom) - h));
+            SetWindowPos(dockHwnd_, nullptr, info.rcWork.right - w, y, 0, 0,
+                         SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
+            placement_.dockMonitor = info.szDevice;
+            return 0;
+        }
+        case WM_MOUSELEAVE:
+            dockHover_ = false; drawDock(); return 0;
+        case WM_LBUTTONUP: {
+            if (!dockDragging_) return 0;
+            bool moved = dockMoved_;
+            dockDragging_ = false;
+            if (GetCapture() == dockHwnd_) ReleaseCapture();
+            if (moved) saveDockPosition(); else expand();
+            return 0;
+        }
+        case WM_CAPTURECHANGED:
+            if (dockDragging_) { dockDragging_ = false; if (dockMoved_) saveDockPosition(); }
+            return 0;
+        case WM_DPICHANGED:
+            placeDock(); drawDock(); return 0;
+        case WM_KEYDOWN:
+            if (wp == VK_RETURN || wp == VK_SPACE) { expand(); return 0; }
+            break;
+    }
+    return DefWindowProcW(dockHwnd_, msg, wp, lp);
 }
 
 LRESULT CALLBACK MainWindow::EditorHostProc(HWND host, UINT msg, WPARAM wp, LPARAM lp) {
@@ -1271,7 +1550,7 @@ LRESULT MainWindow::message(UINT msg, WPARAM wp, LPARAM lp) {
             if (x >= w - edge) return HTRIGHT;
             if (y < edge) return HTTOP;
             if (y >= h - edge) return HTBOTTOM;
-            if (y >= 18 && y <= 72 && x >= 18 && x < w - 93 && !menu_) return HTCAPTION;
+            if (y >= 18 && y <= 72 && x >= 18 && x < w - 126 && !menu_) return HTCAPTION;
             return HTCLIENT;
         }
         case WM_GETMINMAXINFO: {
@@ -1456,7 +1735,11 @@ LRESULT MainWindow::message(UINT msg, WPARAM wp, LPARAM lp) {
             break;
         case WM_TIMECHANGE:
         case WM_SETTINGCHANGE:
-            sortIdleTodos(); scheduleDeadlineRefresh(); redraw(); return 0;
+            placeDock(); sortIdleTodos(); scheduleDeadlineRefresh(); redraw(); return 0;
+        case WM_DISPLAYCHANGE:
+            placeDock();
+            if (!docked_) { fitExpandedToDock(); savePlacement(); }
+            redraw(); return 0;
         case WM_POWERBROADCAST:
             if (wp == PBT_APMRESUMEAUTOMATIC || wp == PBT_APMRESUMESUSPEND || wp == PBT_APMRESUMECRITICAL) {
                 sortIdleTodos(); scheduleDeadlineRefresh(); redraw(); return TRUE;
@@ -1479,6 +1762,7 @@ LRESULT MainWindow::message(UINT msg, WPARAM wp, LPARAM lp) {
             resourceMenuPopup_.reset(); resourceEditor_.reset(); confirmation_.reset();
             if (tooltip_) { DestroyWindow(tooltip_); tooltip_ = nullptr; }
             picker_.reset(); desktop_.reset();
+            if (dockHwnd_) { DestroyWindow(dockHwnd_); dockHwnd_ = nullptr; }
             store_.saveTodos(todos_); savePlacement(); PostQuitMessage(0); return 0;
     }
     return DefWindowProcW(hwnd_, msg, wp, lp);

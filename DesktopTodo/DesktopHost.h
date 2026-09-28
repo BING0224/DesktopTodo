@@ -9,6 +9,7 @@ public:
     static constexpr UINT changedMessage = WM_APP + 20;
     explicit DesktopHost(HWND window);
     ~DesktopHost();
+    void setWindow(HWND window);
     void arrange(bool includeOwnWindow = false);
     bool isDesktopForeground() const;
 };

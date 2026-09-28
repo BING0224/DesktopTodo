@@ -16,12 +16,12 @@ class MainWindow {
     enum class HitKind { None, Row, Due, Check, Delete, Add, AddConfirm, AddCancel,
                          AddChooseDate, AddResource, ExpandResources, ResourceOpen,
                          ResourceRemove, ResourceAdd,
-                         Settings, Close, MenuStartup, MenuFolder, MenuReset,
+                         Settings, Dock, Close, MenuStartup, MenuFolder, MenuReset,
                          ScrollThumb, ScrollTrack };
     struct Hit { HitKind kind = HitKind::None; size_t index = 0, resource = 0; };
 
     HINSTANCE instance_;
-    HWND hwnd_ = nullptr, addHost_ = nullptr, rowHost_ = nullptr;
+    HWND hwnd_ = nullptr, dockHwnd_ = nullptr, addHost_ = nullptr, rowHost_ = nullptr;
     HWND tooltip_ = nullptr;
     HWND addEdit_ = nullptr, rowEdit_ = nullptr;
     HFONT editFont_ = nullptr;
@@ -48,6 +48,10 @@ class MainWindow {
     bool hasScroll_ = false, adding_ = false, menu_ = false, tracking_ = false;
     bool draggingScroll_ = false, ignoreEditFocus_ = false;
     bool resourceDialogOpen_ = false;
+    bool docked_ = false;
+    bool dockDragging_ = false, dockMoved_ = false, dockHover_ = false;
+    POINT dockDown_{};
+    RECT dockStart_{};
     int sizingEdge_ = 0;
     RECT sizingStart_{};
     POINT sizingPointer_{};
@@ -59,10 +63,20 @@ class MainWindow {
     std::vector<Row> rows_;
 
     static LRESULT CALLBACK WindowProc(HWND, UINT, WPARAM, LPARAM);
+    static LRESULT CALLBACK DockWindowProc(HWND, UINT, WPARAM, LPARAM);
     static LRESULT CALLBACK EditorHostProc(HWND, UINT, WPARAM, LPARAM);
     static LRESULT CALLBACK EditProc(HWND, UINT, WPARAM, LPARAM, UINT_PTR, DWORD_PTR);
     LRESULT message(UINT, WPARAM, LPARAM);
+    LRESULT dockMessage(UINT, WPARAM, LPARAM);
     void draw();
+    void drawDock();
+    void redraw();
+    void placeDock();
+    void saveDockPosition();
+    void collapse();
+    void expand();
+    void fitExpandedToDock();
+    int pendingCount() const;
     void layout();
     void positionEditors();
     bool ensureEditor(bool multiline);
@@ -105,9 +119,8 @@ class MainWindow {
     float listHeight() const { return (std::max)(1.0f, listBottom() - listTop()); }
     float rowRight() const { return width_ - 27 - (hasScroll_ ? 9 : 0); }
     float menuX() const { return width_ - 253; }
-    void redraw() { if (hwnd_ && IsWindowVisible(hwnd_) && !IsIconic(hwnd_)) draw(); }
 public:
-    explicit MainWindow(HINSTANCE instance);
+    explicit MainWindow(HINSTANCE instance, bool fromStartup = false);
     ~MainWindow();
     bool createAndShow();
     HWND handle() const { return hwnd_; }

@@ -3,6 +3,8 @@
 #include <gdiplus.h>
 #include <commctrl.h>
 #include <objbase.h>
+#include <shellapi.h>
+#include <cwchar>
 
 int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int) {
     // Physical pixels are converted to the WPF settings file's 96-dpi coordinates.
@@ -19,7 +21,15 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int) {
     }
     int result = 0;
     {
-        MainWindow app(instance);
+        bool fromStartup = false;
+        int argc = 0;
+        LPWSTR* argv = CommandLineToArgvW(GetCommandLineW(), &argc);
+        if (argv) {
+            for (int i = 1; i < argc; ++i)
+                if (_wcsicmp(argv[i], L"--startup") == 0) fromStartup = true;
+            LocalFree(argv);
+        }
+        MainWindow app(instance, fromStartup);
         if (!app.createAndShow()) {
             MessageBoxW(nullptr, L"无法创建 DesktopTodo 窗口。", L"DesktopTodo", MB_OK | MB_ICONERROR);
             result = 1;

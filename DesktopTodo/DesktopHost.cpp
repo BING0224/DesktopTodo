@@ -47,6 +47,11 @@ DesktopHost::~DesktopHost() {
     if (currentWindow == window_) currentWindow = nullptr;
 }
 
+void DesktopHost::setWindow(HWND window) {
+    window_ = window;
+    currentWindow = window;
+}
+
 void CALLBACK DesktopHost::ForegroundEvent(HWINEVENTHOOK, DWORD, HWND, LONG, LONG, DWORD, DWORD) {
     if (currentWindow && IsWindow(currentWindow)) PostMessageW(currentWindow, changedMessage, 0, 0);
 }
