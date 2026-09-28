@@ -1,10 +1,10 @@
 # DesktopTodo
 
-一个放在 Windows 桌面的轻量待办组件。原生版使用 C++17、Win32 和 GDI+，保留桌面常驻体验，并支持截止时间、资源关联和右侧停靠。无需登录，待办保存在本机。**本源码包含尚未发布到 GitHub Releases 的右侧停靠更新；现有 v0.2.0 EXE 不包含这项更新。**
+一个放在 Windows 桌面的轻量待办组件。原生版使用 C++17、Win32 和 GDI+，保留桌面常驻体验，并支持截止时间、资源关联和右侧停靠。无需登录，待办保存在本机。
 
 ## 下载与运行
 
-适用于 **Windows 10/11 x64**。若要使用右侧停靠，请下载本源码包并运行 `build.cmd`，生成 `build\DesktopTodo.exe`；现有 [Releases](https://github.com/BING0224/DesktopTodo/releases) 中的 v0.2.0 EXE 为停靠功能加入前的版本。编译出的 EXE 包含所需的 C++ 运行库，运行时不需要安装 .NET 或 Visual Studio。若启用开机自启，移动 EXE 后请在设置中重新切换一次开机自启。
+适用于 **Windows 10/11 x64**。若要使用右侧停靠，请下载本源码包并运行 `build.cmd`，生成 `build\DesktopTodo.exe`；现有 [Releases](https://github.com/BING0224/DesktopTodo/releases) 中的 v0.3.0 EXE 为停靠功能加入前的版本。编译出的 EXE 包含所需的 C++ 运行库，运行时不需要安装 .NET 或 Visual Studio。若启用开机自启，移动 EXE 后请在设置中重新切换一次开机自启。
 
 > Releases 页面自动生成的 “Source code (zip)” 是源码，不是可直接运行的程序；请下载发布附件中的 EXE。
 
@@ -44,5 +44,3 @@
 | `build.cmd` | 编译到 `build\DesktopTodo.exe`，结束时显示编译结果 |
 | `run.cmd` | 编译并启动程序 |
 | `publish-win-x64.cmd` | 编译并复制 EXE 到 `publish\win-x64\DesktopTodo.exe` |
-
-源文件位于 `DesktopTodo\`，编译采用 `/MT` 静态链接 C++ 运行库。`build\` 与 `publish\` 是生成目录，无需提交到 GitHub；发布给普通用户时，请将编译后的 EXE 作为 Release 附件上传。
