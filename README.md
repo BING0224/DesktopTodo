@@ -3,6 +3,7 @@
 一个放在 Windows 桌面的轻量待办组件。原生版使用 C++17、Win32 和 GDI+，保留桌面常驻体验，并支持截止时间、资源关联和右侧停靠。无需登录，待办保存在本机。
 
 
+![DesktopTodo](DesktopTodo/Assets/img.png)
 ## 下载与运行
 
 适用于 **Windows 10/11 x64**。若要使用右侧停靠，请下载本源码包并运行 `build.cmd`，生成 `build\DesktopTodo.exe`；现有 [Releases](https://github.com/BING0224/DesktopTodo/releases) 中的 v0.3.0 EXE 为停靠功能加入前的版本。编译出的 EXE 包含所需的 C++ 运行库，运行时不需要安装 .NET 或 Visual Studio。若启用开机自启，移动 EXE 后请在设置中重新切换一次开机自启。
