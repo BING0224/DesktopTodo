@@ -1,3 +1,0 @@
-#include <windows.h>
-1 ICON "Assets\\DesktopTodo.ico"
-1 RT_MANIFEST "app.manifest"
