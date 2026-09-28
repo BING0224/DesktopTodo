@@ -1,6 +1,6 @@
 # DesktopTodo
 
-一个放在 Windows 桌面的轻量待办组件。原生版使用 C++17、Win32 和 GDI+，保留桌面常驻体验，并支持截止时间、资源关联和右侧停靠。无需登录，待办保存在本机。
+一个放在 Windows 桌面的轻量待办组件。原生版使用 C++17、Win32 和 GDI+，保留桌面常驻体验，并支持截止时间、资源关联和右侧停靠。无需登录，待办保存在本机。内存占用不超过10MB。
 
 
 ![DesktopTodo](DesktopTodo/Assets/img.png)
